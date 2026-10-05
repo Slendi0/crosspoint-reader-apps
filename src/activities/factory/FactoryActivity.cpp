@@ -11,16 +11,24 @@
 
 namespace {
 constexpr int TOOL_COUNT = 5;
-constexpr const char* TOOL_NAMES[TOOL_COUNT] = {"Drill", "Belt", "Furnace", "Chest", "Erase"};
+constexpr const char* TOOL_NAMES[TOOL_COUNT] = {"Бур", "Лента", "Печь", "Склад", "Стереть"};
 constexpr uint8_t TOOL_KINDS[TOOL_COUNT] = {fgame::KIND_DRILL, fgame::KIND_BELT, fgame::KIND_FURNACE,
                                             fgame::KIND_CHEST, fgame::KIND_EMPTY};
 constexpr int TOOL_ERASE = 4;
 constexpr int STEPS_PER_PRESS = 5;
+
+// Прогресс сохраняется, пока читалка не перезагружена: можно выйти и вернуться.
+fgame::Game g_saved;
+bool g_hasSaved = false;
 }  // namespace
 
 void FactoryActivity::onEnter() {
   Activity::onEnter();
-  game.init();
+  if (g_hasSaved) {
+    game = g_saved;
+  } else {
+    game.init();
+  }
   curX = fgame::GRID_W / 2;
   curY = fgame::GRID_H / 2;
   onToolbar = false;
@@ -30,13 +38,23 @@ void FactoryActivity::onEnter() {
   requestUpdate();
 }
 
-void FactoryActivity::onExit() { Activity::onExit(); }
+void FactoryActivity::onExit() {
+  g_saved = game;
+  g_hasSaved = true;
+  Activity::onExit();
+}
 
 void FactoryActivity::loop() {
   using Button = MappedInputManager::Button;
 
   if (mappedInput.wasReleased(Button::Back)) {
-    finish();
+    // На клетке с постройкой «Назад» убирает её, на пустой клетке и на панели выходит из игры.
+    if (!onToolbar && game.c[curY][curX].kind != fgame::KIND_EMPTY) {
+      game.remove(curX, curY);
+      requestUpdate();
+    } else {
+      finish();
+    }
     return;
   }
 
@@ -105,10 +123,9 @@ void FactoryActivity::render(RenderLock&&) {
   renderer.clearScreen();
 
   const auto pageWidth = renderer.getScreenWidth();
-  const auto pageHeight = renderer.getScreenHeight();
   const auto& metrics = UITheme::getInstance().getMetrics();
 
-  GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight}, "Factory");
+  GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight}, "Фабрика");
 
   // Размер клетки подбирается под ширину экрана.
   int tile = (pageWidth - 20) / fgame::GRID_W;
@@ -117,16 +134,16 @@ void FactoryActivity::render(RenderLock&&) {
   const int gridH = tile * fgame::GRID_H;
   const int gridX = (pageWidth - gridW) / 2;
 
-  // Верхняя панель: [Build: ...] [Step x5] [New]
+  // Верхняя панель: [Строить: ...] [Шаг x5] [Заново]
   const int toolbarY = metrics.topPadding + metrics.headerHeight + 15;
   const int btnH = 26;
   int btnW = (pageWidth - 60) / 3;
   if (btnW > 130) btnW = 130;
   const int btnX0 = (pageWidth - (3 * btnW + 20)) / 2;
 
-  char label[24];
-  snprintf(label, sizeof(label), "Build: %s", TOOL_NAMES[tool]);
-  const char* labels[3] = {label, "Step x5", "New"};
+  char label[40];
+  snprintf(label, sizeof(label), "Строить: %s", TOOL_NAMES[tool]);
+  const char* labels[3] = {label, "Шаг x5", "Заново"};
   for (int i = 0; i < 3; i++) {
     const int bx = btnX0 + i * (btnW + 10);
     const bool selected = onToolbar && toolCol == i;
@@ -145,15 +162,30 @@ void FactoryActivity::render(RenderLock&&) {
   // Клетки
   for (int y = 0; y < fgame::GRID_H; y++) {
     for (int x = 0; x < fgame::GRID_W; x++) {
-      const char g = game.glyph(x, y);
-      if (g == ' ') continue;
-      const char buf[2] = {g, '\0'};
-      const bool machine = (g == 'D' || g == 'F' || g == 'S');
-      const EpdFontFamily::Style style = machine ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR;
-      const int tw = renderer.getTextWidth(SMALL_FONT_ID, buf, style);
-      const int th = renderer.getLineHeight(SMALL_FONT_ID);
-      renderer.drawText(SMALL_FONT_ID, gridX + x * tile + (tile - tw) / 2, gridY + y * tile + (tile - th) / 2, buf, true,
-                        style);
+      const fgame::Cell& cell = game.c[y][x];
+      const char* g = game.glyph(x, y);
+      const int cellX = gridX + x * tile;
+      const int cellY = gridY + y * tile;
+
+      if (g[0] != ' ') {
+        const bool machine = (cell.kind == fgame::KIND_DRILL || cell.kind == fgame::KIND_FURNACE ||
+                              cell.kind == fgame::KIND_CHEST);
+        const EpdFontFamily::Style style = machine ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR;
+        const int tw = renderer.getTextWidth(SMALL_FONT_ID, g, style);
+        const int th = renderer.getLineHeight(SMALL_FONT_ID);
+        renderer.drawText(SMALL_FONT_ID, cellX + (tile - tw) / 2, cellY + (tile - th) / 2, g, true, style);
+      }
+
+      // Чёрточка у края клетки показывает, куда бур и печь отдают предметы.
+      if (cell.kind == fgame::KIND_DRILL || cell.kind == fgame::KIND_FURNACE) {
+        const int d = cell.dir & 3;
+        const int cx = cellX + tile / 2;
+        const int cy = cellY + tile / 2;
+        const int outer = tile / 2 - 2;
+        const int inner = tile / 2 - 8;
+        renderer.drawLine(cx + fgame::DX[d] * outer, cy + fgame::DY[d] * outer, cx + fgame::DX[d] * inner,
+                          cy + fgame::DY[d] * inner, 3, true);
+      }
     }
   }
 
@@ -172,24 +204,28 @@ void FactoryActivity::render(RenderLock&&) {
     renderer.drawLine(gridX, y, gridX + gridW, y, 1, true);
   }
 
-  // Состояние и подсказка по значкам
-  char status[48];
-  snprintf(status, sizeof(status), "Ingots: %u/%d   Tick: %lu", static_cast<unsigned>(game.stored[fgame::ITEM_INGOT]),
+  // Состояние и подсказки
+  char status[64];
+  snprintf(status, sizeof(status), "Слитки: %u/%d   Такт: %lu", static_cast<unsigned>(game.stored[fgame::ITEM_INGOT]),
            fgame::GOAL, static_cast<unsigned long>(game.tick));
-  int curY2 = gridY + gridH + 12;
-  renderer.drawCenteredText(SMALL_FONT_ID, curY2, status, true, EpdFontFamily::REGULAR);
-  curY2 += renderer.getLineHeight(SMALL_FONT_ID) + 6;
-  renderer.drawCenteredText(SMALL_FONT_ID, curY2, "D drill  F furnace  S chest  o ore  = ingot", true,
+  int textY = gridY + gridH + 12;
+  renderer.drawCenteredText(SMALL_FONT_ID, textY, status, true, EpdFontFamily::REGULAR);
+  textY += renderer.getLineHeight(SMALL_FONT_ID) + 6;
+  renderer.drawCenteredText(SMALL_FONT_ID, textY, "Б бур   П печь   С склад   = слиток", true,
                             EpdFontFamily::REGULAR);
+  textY += renderer.getLineHeight(SMALL_FONT_ID) + 4;
+  renderer.drawCenteredText(SMALL_FONT_ID, textY, "Чёрточка у края: куда выходит", true, EpdFontFamily::REGULAR);
 
   if (game.won()) {
-    curY2 += renderer.getLineHeight(SMALL_FONT_ID) + 12;
-    renderer.drawCenteredText(UI_12_FONT_ID, curY2, "FACTORY WORKS!", true, EpdFontFamily::BOLD);
+    textY += renderer.getLineHeight(SMALL_FONT_ID) + 12;
+    renderer.drawCenteredText(UI_12_FONT_ID, textY, "ФАБРИКА РАБОТАЕТ!", true, EpdFontFamily::BOLD);
   }
 
-  const auto hints = mappedInput.mapLabels(tr(STR_BACK), tr(STR_SELECT), tr(STR_DIR_LEFT), tr(STR_DIR_RIGHT));
+  // Левая нижняя кнопка: на постройке она убирает её, иначе выходит.
+  const bool canRemove = !onToolbar && game.c[curY][curX].kind != fgame::KIND_EMPTY;
+  const char* backLabel = canRemove ? "Убрать" : tr(STR_BACK);
+  const auto hints = mappedInput.mapLabels(backLabel, tr(STR_SELECT), tr(STR_DIR_LEFT), tr(STR_DIR_RIGHT));
   GUI.drawButtonHints(renderer, hints.btn1, hints.btn2, hints.btn3, hints.btn4);
 
-  (void)pageHeight;
   renderer.displayBuffer();
 }
