@@ -25,3 +25,6 @@ class FactoryActivity final : public Activity {
   void loop() override;
   void render(RenderLock&&) override;
 };
+
+
+
