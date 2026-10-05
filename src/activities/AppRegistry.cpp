@@ -120,7 +120,7 @@ AppRegistry::AppRegistry() {
 
   // Factory App
   apps.push_back(std::make_unique<App>(
-      "Factory", UIIcon::Dice, [](GfxRenderer &r, MappedInputManager &i) {
+      "Фабрика", UIIcon::Dice, [](GfxRenderer &r, MappedInputManager &i) {
         return std::make_unique<FactoryActivity>(r, i);
       }));
 }
