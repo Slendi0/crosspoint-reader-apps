@@ -112,20 +112,22 @@ struct Game {
   }
   bool won() const { return stored[ITEM_INGOT] >= GOAL; }
 
-  // Символ клетки: по нему экран выбирает, что нарисовать.
-  char glyph(int x, int y) const {
+  // Что нарисовать в клетке (строка в UTF-8).
+  const char* glyph(int x, int y) const {
     const Cell& t = c[y][x];
     switch (t.kind) {
-      case KIND_DRILL: return 'D';
-      case KIND_FURNACE: return 'F';
-      case KIND_CHEST: return 'S';
-      case KIND_BELT:
-        if (t.item == ITEM_ORE) return 'o';
-        if (t.item == ITEM_INGOT) return '=';
-        return "^>v<"[t.dir & 3];
+      case KIND_DRILL: return "Б";
+      case KIND_FURNACE: return "П";
+      case KIND_CHEST: return "С";
+      case KIND_BELT: {
+        if (t.item == ITEM_ORE) return "o";
+        if (t.item == ITEM_INGOT) return "=";
+        static const char* const ARROWS[4] = {"^", ">", "v", "<"};
+        return ARROWS[t.dir & 3];
+      }
       default: break;
     }
-    return t.ore ? ':' : ' ';
+    return t.ore ? ":" : " ";
   }
 };
 
