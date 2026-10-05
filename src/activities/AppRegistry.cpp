@@ -3,6 +3,7 @@
 #include "activities/chess/ChessActivity.h"
 #include "activities/dice/DiceActivity.h"
 #include "activities/duckduckgo/DuckDuckGoActivity.h"
+#include "activities/factory/FactoryActivity.h"
 #include "activities/rss/RssActivity.h"
 #include "activities/sudoku/SudokuActivity.h"
 #include "activities/weather/WeatherActivity.h"
@@ -115,5 +116,11 @@ AppRegistry::AppRegistry() {
   apps.push_back(std::make_unique<App>(
       "Dice", UIIcon::Dice, [](GfxRenderer &r, MappedInputManager &i) {
         return std::make_unique<DiceActivity>(r, i);
+      }));
+
+  // Factory App
+  apps.push_back(std::make_unique<App>(
+      "Factory", UIIcon::Dice, [](GfxRenderer &r, MappedInputManager &i) {
+        return std::make_unique<FactoryActivity>(r, i);
       }));
 }
