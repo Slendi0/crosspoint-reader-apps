@@ -5,7 +5,7 @@
 namespace fgame {
 
 constexpr int GRID_W = 20;  // ширина поля в клетках
-constexpr int GRID_H = 12;  // высота поля в клетках
+constexpr int GRID_H = 18;  // высота поля в клетках
 
 enum Kind : uint8_t { KIND_EMPTY, KIND_DRILL, KIND_BELT, KIND_FURNACE, KIND_CHEST };
 enum Item : uint8_t { ITEM_NONE, ITEM_ORE, ITEM_INGOT };
@@ -28,6 +28,7 @@ struct Game {
   bool moved[GRID_H][GRID_W];
   uint16_t stored[3];
   uint32_t tick;
+  bool changed;  // на последнем такте что-то сдвинулось (нужна перерисовка)
 
   void init() {
     *this = Game();  // всё в ноль
@@ -46,13 +47,16 @@ struct Game {
         if (t.item) return false;
         t.item = it;
         moved[y][x] = true;  // чтобы лента не двинула его второй раз за такт
+        changed = true;
         return true;
       case KIND_FURNACE:
         if (it != ITEM_ORE || t.a >= 5) return false;
         t.a++;
+        changed = true;
         return true;
       case KIND_CHEST:
         stored[it]++;
+        changed = true;
         return true;
       default:
         return false;
@@ -62,6 +66,7 @@ struct Game {
   // Один такт симуляции.
   void step() {
     tick++;
+    changed = false;
     for (int y = 0; y < GRID_H; y++)
       for (int x = 0; x < GRID_W; x++) moved[y][x] = false;
     for (int y = 0; y < GRID_H; y++) {
@@ -111,24 +116,6 @@ struct Game {
     t.b = 0;
   }
   bool won() const { return stored[ITEM_INGOT] >= GOAL; }
-
-  // Что нарисовать в клетке (строка в UTF-8).
-  const char* glyph(int x, int y) const {
-    const Cell& t = c[y][x];
-    switch (t.kind) {
-      case KIND_DRILL: return "Б";
-      case KIND_FURNACE: return "П";
-      case KIND_CHEST: return "С";
-      case KIND_BELT: {
-        if (t.item == ITEM_ORE) return "o";
-        if (t.item == ITEM_INGOT) return "=";
-        static const char* const ARROWS[4] = {"^", ">", "v", "<"};
-        return ARROWS[t.dir & 3];
-      }
-      default: break;
-    }
-    return t.ore ? ":" : " ";
-  }
 };
 
 }  // namespace fgame
