@@ -6,6 +6,7 @@
 #include "activities/factory/FactoryActivity.h"
 #include "activities/rss/RssActivity.h"
 #include "activities/sudoku/SudokuActivity.h"
+#include "activities/notepad/NotepadActivity.h"
 #include "activities/weather/WeatherActivity.h"
 #include "activities/wikipedia/WikipediaActivity.h"
 
@@ -123,4 +124,10 @@ AppRegistry::AppRegistry() {
       "Фабрика", UIIcon::Dice, [](GfxRenderer &r, MappedInputManager &i) {
         return std::make_unique<FactoryActivity>(r, i);
       }));
+    // Notepad App
+  apps.push_back(std::make_unique<App>(
+      "Notepad", UIIcon::Folder, [](GfxRenderer &r, MappedInputManager &i) {
+        return std::make_unique<NotepadActivity>(r, i);
+      }));
+
 }
